@@ -1,0 +1,14 @@
+{
+  "name": "grebo",
+  "version": "0.0.1",
+  "description": "Discord language learning quiz bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.18.0"
+  }
+}
