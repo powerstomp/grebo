@@ -1,6 +1,7 @@
-const { Client, Events, GatewayIntentBits } = require('discord.js');
-const { token } = require('./config.json');
-const { commands } = require('./command-router.js');
+import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { commands } from './command-router.mjs';
+
+import config from './config.json' with { type: 'json' };
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -37,4 +38,4 @@ client.on(Events.InteractionCreate, async (interaction) => {
 	}
 });
 
-client.login(token);
+client.login(config.token);
