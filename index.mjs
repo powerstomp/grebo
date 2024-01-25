@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { commands } from './command-router.mjs';
 
 import config from './config.json' with { type: 'json' };
+import { pool } from './database.mjs';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
