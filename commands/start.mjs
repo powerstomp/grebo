@@ -2,15 +2,11 @@ import {
 	SlashCommandBuilder, ActionRowBuilder,
 	ButtonBuilder, ButtonStyle, EmbedBuilder
 } from 'discord.js';
-
-const flashcards = [
-	{ front: "1 + 1 = ?", back: "2" },
-	{ front: "(-1)^3 = ?", back: "-1" },
-];
+import { Session } from '../models/session.mjs'
 
 const learningSessions = new Map();
 
-function createFlashcardEmbed(card, showBack = false, session = null) {
+function createFlashcardEmbed(card, showBack) {
 	const embed = new EmbedBuilder()
 		.setTitle(card.front)
 		.setColor(showBack ? 0x00ff00 : 0x0099ff);
@@ -21,28 +17,25 @@ function createFlashcardEmbed(card, showBack = false, session = null) {
 	return embed;
 }
 
-function createFlashcardMessage(card, showBack = false, session = null) {
-	const embed = createFlashcardEmbed(card, showBack, session);
+function createFlashcardMessage(card, showBack) {
+	const embed = createFlashcardEmbed(card, showBack);
 	const row = new ActionRowBuilder();
 
 	if (!showBack) {
 		row.addComponents(
 			new ButtonBuilder()
-				.setCustomId('reveal')
-				// .setLabel('Reveal Back')
+				.setCustomId('Reveal')
 				.setStyle(ButtonStyle.Primary)
-				.setEmoji('👁️'), // Eye emoji
+				.setEmoji('👁️'),
 		);
 	} else {
 		row.addComponents(
 			new ButtonBuilder()
-				.setCustomId('remembered')
-				// .setLabel('Remembered')
+				.setCustomId('Pass')
 				.setStyle(ButtonStyle.Success)
 				.setEmoji('👍'),
 			new ButtonBuilder()
-				.setCustomId('forgot')
-				// .setLabel('Forgot')
+				.setCustomId('Fail')
 				.setStyle(ButtonStyle.Danger)
 				.setEmoji('👎'),
 		);
@@ -57,29 +50,29 @@ function createCompletionMessage(session) {
 		.setColor(0x00ffff)
 		.addFields(
 			{
-				name: "Remembered",
-				value: session.score.remembered.toString(),
+				name: "Passed",
+				value: session.score.pass.toString(),
 				inline: true,
 			},
 			{
-				name: "Forgot",
-				value: session.score.forgot.toString(),
+				name: "Failed",
+				value: session.score.fail.toString(),
 				inline: true,
 			},
 			{
-				name: "Retention rate",
-				value: session.score.retentionRate.toLocaleString(undefined, { style: 'percent' }),
+				name: "Retention Rate",
+				value: session.score.retention.toLocaleString(undefined, { style: 'percent' }),
 				inline: true,
-			},
+			}
 		);
 	return { embeds: [embed], components: [], ephemeral: true, };
 }
 
 export const data = new SlashCommandBuilder().setName('start').setDescription('Start a new learning session.');
 export async function execute(interaction) {
-	const userId = interaction.user.id;
+	const userID = interaction.user.id;
 
-	if (learningSessions.has(userId)) {
+	if (learningSessions.has(userID)) {
 		await interaction.reply({
 			content: 'You already have an active learning session. Finish that one or use /stop.',
 			ephemeral: true,
@@ -87,48 +80,43 @@ export async function execute(interaction) {
 		return;
 	}
 
-	const session = {
-		cards: flashcards,
-		currentCardIndex: 0,
-		score: {
-			remembered: 0, forgot: 0,
-			get answered() { return this.remembered + this.forgot; },
-			get retentionRate() { return this.remembered / this.answered; },
-		},
-	};
-	learningSessions.set(userId, session);
+	const session = new Session({ userID });
 
-	const firstCard = session.cards[session.currentCardIndex];
-	const messageData = createFlashcardMessage(firstCard, false, session);
+	const card = await session.nextCard();
+	if (!card) {
+		await interaction.reply({ content: 'No card available.', ephemeral: true });
+		return;
+	}
+
+	learningSessions.set(userID, session);
+
+	const messageData = createFlashcardMessage(card, false);
 	await interaction.reply(messageData);
 }
 export async function onButton(interaction) {
-	const userId = interaction.user.id;
-	const session = learningSessions.get(userId);
+	const userID = interaction.user.id;
+	const session = learningSessions.get(userID);
 	if (!session) return;
 
-	const currentCard = session.cards[session.currentCardIndex];
+	const currentCard = session.currentCard;
 
-	if (interaction.customId === 'reveal') {
+	if (interaction.customId === 'Reveal') {
 		const messageData = createFlashcardMessage(currentCard, true, session);
 		await interaction.update(messageData);
-	} else if (interaction.customId === 'remembered' ||
-		interaction.customId === 'forgot') {
-		if (interaction.customId === 'remembered')
-			session.score.remembered++;
+	} else if (interaction.customId === 'Pass' ||
+		interaction.customId === 'Fail') {
+		const tmp = await session.grade(interaction.customId);
+		if (typeof tmp !== 'boolean')
+			throw new Error(`Unexpected session grade response: ${tmp}`);
 
-		else
-			session.score.forgot++;
-
-		session.currentCardIndex++;
-
-		if (session.currentCardIndex < session.cards.length) {
-			const nextCard = session.cards[session.currentCardIndex];
-			const messageData = createFlashcardMessage(nextCard, false, session);
-			await interaction.update(messageData);
-		} else {
-			learningSessions.delete(userId);
+		const nextCard = await session.nextCard();
+		if (!nextCard) {
+			learningSessions.delete(userID);
 			await interaction.update(createCompletionMessage(session));
+			return;
 		}
+
+		const messageData = createFlashcardMessage(nextCard, false, session);
+		await interaction.update(messageData);
 	}
 }

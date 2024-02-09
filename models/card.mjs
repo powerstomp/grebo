@@ -7,26 +7,30 @@ class Card {
 		this.back = back;
 	}
 
+	static async fromRow(row) {
+		return new Card(row);
+	}
+
 	static async create(front, back) {
 		if (!front || !back)
 			throw new Error("Card has empty side.");
 		const result = await pool.query(
 			'INSERT INTO CARDS(Front, Back) VALUES ($1, $2) RETURNING *',
 			[front, back]);
-		return new Card(result.rows[0]);
+		return this.fromRow(result.rows[0]);
 	}
 
 	static async getByID(id) {
 		const result = await pool.query(
 			'SELECT * FROM CARDS WHERE id = $1',
 			[id]);
-		return result.rowCount === 0 ? null : new Card(result.rows[0]);
+		return result.rowCount === 0 ? null : this.fromRow(result.rows[0]);
 	}
 
 	static async getAll() {
 		const result = await pool.query(
 			'SELECT * FROM cards');
-		return result.rows.map((row) => new Card(row));
+		return result.rows.map((row) => this.fromRow(row));
 	}
 
 	async update(front, back) {
@@ -37,7 +41,7 @@ class Card {
 			[this.id, front, back]);
 		if (result.rowCount === 0)
 			throw new Error(`Card update failed: ${this.id}`);
-		Object.assign(this, result.rows[0]);
+		Object.assign(this, this.fromRow(result.rows[0]));
 	}
 
 	static async delete(id) {

@@ -1,5 +1,6 @@
 import { pool } from '../database.mjs'
 
+
 class Review {
 	constructor({ id, cardID, userID, grade, time }) {
 		this.id = id;
@@ -9,16 +10,27 @@ class Review {
 		this.time = time;
 	}
 
+	static async fromRow(row) {
+		return new Review({
+			id: row.id,
+			cardID: row.cardid,
+			userID: row.userid,
+			grade: row.grade,
+			time: row.time
+		});
+	}
+
 	static async create(cardID, userID, grade) {
 		if (!cardID || !userID || !grade) {
 			throw new Error('cardId, userID, and grade are required.');
 		}
 
 		const result = await pool.query(
-			'INSERT INTO reviews(CardID, UserID, Grade) VALUES($1, $2, $3) RETURNING *',
+			'INSERT INTO REVIEWS(CardID, UserID, Grade) VALUES($1, $2, $3) RETURNING *',
 			[cardID, userID, grade],
 		);
-		return new Review(result.rows[0]);
+
+		return this.fromRow(result.rows[0]);
 	}
 
 	static async getReviewsByUserToday(userID) {
@@ -26,7 +38,7 @@ class Review {
 			`SELECT * FROM REVIEWS WHERE UserID = $1 AND time >= NOW() - INTERVAL '1 day'`,
 			[userID],
 		);
-		return result.rows.map((row) => new Review(row));
+		return result.rows.map((row) => this.fromRow(row));
 	}
 
 	static async getReviewCountByUserToday(userID) {

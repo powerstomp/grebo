@@ -9,11 +9,21 @@ class UserCard {
 		this.streak = streak;
 	}
 
+	static async fromRow(row) {
+		return new UserCard({
+			userID: row.userid,
+			cardID: row.cardid,
+			due: row.due,
+			streak: row.streak
+		});
+	}
+
+
 	static async getByID(userID, cardID) {
 		const result = await pool.query(
 			'SELECT * FROM USER_CARDS WHERE UserID = $1 AND CardID = $2',
 			[userID, cardID]);
-		return result.rowCount === 0 ? null : new UserCard(result.rows[0]);
+		return result.rowCount === 0 ? null : this.fromRow(result.rows[0]);
 	}
 
 	static async create(userID, cardID) {
@@ -23,32 +33,32 @@ class UserCard {
              ON CONFLICT (userid, cardid) DO NOTHING
              RETURNING *`, [userID, cardID]
 		)
-		return result.rowCount === 0 ? null : new UserCard(result.rows[0]);
+		return result.rowCount === 0 ? null : this.fromRow(result.rows[0]);
 	}
 
 	static async getOrCreateByID(userID, cardID) {
-		return await getByID(userID, cardID) ?? await create(userID, cardID);
+		return await this.getByID(userID, cardID) ?? await this.create(userID, cardID);
 	}
 
 	static async getNextDueCard(userID) {
 		const result = await pool.query(
 			`SELECT c.* FROM CARDS c
-			JOIN USER_CARDS uc ON c.CardID = uc.CardID AND uc.UserID = $1
+			LEFT JOIN USER_CARDS uc ON c.ID = uc.CardID AND uc.UserID = $1
 			WHERE uc.Due IS NULL OR uc.Due <= NOW()
 			ORDER BY uc.due ASC, RANDOM() LIMIT 1`,
 			[userID],
 		);
 
-		return result.rowCount === 0 ? null : new Card(result);
+		return result.rowCount === 0 ? null : Card.fromRow(result.rows[0]);
 	}
 
 	async reviewCard(grade) {
 		if (grade === 'Pass') {
 			this.streak++;
-			this.due = new Date(Date.now() + 2 ** newStreak * 24 * 60 * 60 * 1000)
+			this.due = new Date(Date.now() + 2 ** this.streak * 24 * 60 * 60 * 1000)
 		} else if (grade === 'Fail') {
 			this.streak = 0;
-			this.due = new Date();
+			this.due = new Date(Date.now() + 24 * 60 * 60 * 1000);
 		} else
 			throw new Error(`Invalid grade: ${grade}`);
 
@@ -56,11 +66,12 @@ class UserCard {
 			`UPDATE USER_CARDS
 			SET Due = $3, Streak = $4
 			WHERE UserID = $1 AND CardID = $2
-			RETURNING 1`,
+			RETURNING *`,
 			[this.userID, this.cardID, this.due, this.streak]);
 		if (result.rowCount === 0)
 			throw new Error('Failed to write card review to database.');
 
+		Object.assign(this, UserCard.fromRow(result.rows[0]));
 		return grade === 'Pass';
 	}
 };

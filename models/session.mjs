@@ -4,7 +4,10 @@ class Session {
 	constructor({ userID }) {
 		this.userID = userID;
 		this.currentCard = null;
-		this.score = { pass: 0, fail: 0 };
+		this.score = {
+			pass: 0, fail: 0,
+			get retention() { return this.pass / (this.pass + this.fail); }
+		};
 	}
 
 	async nextCard() {
@@ -20,6 +23,15 @@ class Session {
 		if (!usercard)
 			throw new Error(`Usercard not found: ${this.userID, this.currentCard.id}`);
 
-		return await usercard.reviewCard(grade);
+		const result = await usercard.reviewCard(grade);
+
+		if (result)
+			this.score.pass++;
+		else
+			this.score.fail++;
+
+		return result;
 	}
 };
+
+export { Session };
