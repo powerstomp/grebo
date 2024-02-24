@@ -13,7 +13,7 @@ client.once(Events.ClientReady, async (client) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
-	console.debug(interaction);
+	// console.debug(interaction);
 	if (interaction.isButton()) {
 		for (const command of commands.values())
 			if ('onButton' in command)
