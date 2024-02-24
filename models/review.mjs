@@ -35,7 +35,7 @@ class Review {
 
 	static async getReviewsByUserToday(userID) {
 		const result = await pool.query(
-			`SELECT * FROM REVIEWS WHERE UserID = $1 AND time >= NOW() - INTERVAL '1 day'`,
+			`SELECT * FROM REVIEWS WHERE UserID = $1 AND time >= DATE(NOW())`,
 			[userID],
 		);
 		return result.rows.map((row) => this.fromRow(row));
@@ -44,16 +44,35 @@ class Review {
 	static async getReviewCountByUserToday(userID) {
 		const result = await pool.query(
 			`SELECT COUNT(*) AS ReviewCount FROM REVIEWS
-			WHERE UserID = $1 AND time >= NOW() - INTERVAL '1 day'`,
+			WHERE UserID = $1 AND time >= DATE(NOW())`,
 			[userID]
 		);
-		return result.rows[0].reviewCount ?? 0;
+		return result.rows[0].reviewcount ?? 0;
+	}
+
+	static async getUserStreak(userID) {
+		const result = await pool.query(
+			`WITH USERREVIEWS AS (
+				SELECT DISTINCT DATE(Time) AS Date
+				FROM REVIEWS
+				WHERE UserID = $1
+			), STREAKGROUPS AS (
+				SELECT Date,
+					Date - INTERVAL '1 day' * (ROW_NUMBER() OVER (ORDER BY Date)) AS StreakGroup
+				FROM USERREVIEWS
+			)
+			SELECT COUNT(*) AS Streak
+			FROM STREAKGROUPS
+			WHERE StreakGroup = (SELECT StreakGroup FROM STREAKGROUPS ORDER BY Date DESC LIMIT 1);`,
+			[userID]
+		);
+		return result.rows[0].streak ?? 0;
 	}
 
 	static async getTopMostReviewsToday(count) {
 		const result = await pool.query(
 			`SELECT UserID, COUNT(*) AS ReviewCount FROM REVIEWS
-			WHERE time >= NOW() - INTERVAL '1 day'
+			WHERE time >= DATE(NOW())
 			GROUP BY UserID ORDER BY ReviewCount DESC LIMIT $1;
 			`, [count]
 		);

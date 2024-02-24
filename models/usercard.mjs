@@ -1,5 +1,6 @@
 import { pool } from '../database.mjs'
 import { Card } from './card.mjs'
+import { Review } from './review.mjs'
 
 class UserCard {
 	constructor({ userID, cardID, due, streak }) {
@@ -69,7 +70,10 @@ class UserCard {
 			RETURNING *`,
 			[this.userID, this.cardID, this.due, this.streak]);
 		if (result.rowCount === 0)
-			throw new Error('Failed to write card review to database.');
+			throw new Error('Failed to update card scheduling information.');
+		const review = await Review.create(this.cardID, this.userID, grade);
+		if (!review)
+			throw new Error('!review');
 
 		Object.assign(this, UserCard.fromRow(result.rows[0]));
 		return grade === 'Pass';
